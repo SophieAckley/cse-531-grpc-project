@@ -38,8 +38,8 @@ class Customer:
                     "result": response.result
                 })
             
-            # Sleep for a short time to ensure sequential execution
-            time.sleep(0.1)
+            # Sleep for a short time to ensure sequential execution and allow propagation to complete.
+            time.sleep(0.5)
 
         return self.recvMsg
 
