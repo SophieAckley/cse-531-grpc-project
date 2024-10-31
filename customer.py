@@ -12,6 +12,7 @@ class Customer:
 
     def createStub(self):
         # 创建与分支通信的stub
+        # 注意，这里需要连接到相应的分支，而不是客户ID
         channel = grpc.insecure_channel(f'localhost:{50000 + self.id}')
         self.stub = example_pb2_grpc.RPCStub(channel)
 
