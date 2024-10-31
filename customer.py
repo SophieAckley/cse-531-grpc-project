@@ -11,6 +11,7 @@ class Customer:
         self.stub = None
 
     def createStub(self):
+        # 创建与分支通信的stub
         channel = grpc.insecure_channel(f'localhost:{50000 + self.id}')
         self.stub = example_pb2_grpc.RPCStub(channel)
 
@@ -42,8 +43,3 @@ class Customer:
             time.sleep(0.5)
 
         return self.recvMsg
-
-# Usage example:
-# customer = Customer(id=1, events=[{"id": 1, "interface": "query"}, {"id": 2, "interface": "deposit", "money": 100}])
-# results = customer.executeEvents()
-# print(results)
