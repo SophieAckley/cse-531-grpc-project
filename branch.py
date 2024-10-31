@@ -80,7 +80,7 @@ class Branch(example_pb2_grpc.RPCServicer):
 
 def serve(branch):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    example_pb2_grpc.add_RPCServicer_to_server(branch, server)
+    example_pb2_grpc.add_BankServiceServicer_to_server(branch, server)
     server.add_insecure_port(f'[::]:{50000 + branch.id}')
     server.start()
     server.wait_for_termination()
