@@ -86,6 +86,7 @@ class Branch(example_pb2_grpc.RPCServicer):
             try:
                 request = example_pb2.Request(interface=interface, money=money)
                 stub.MsgDelivery(request)
+                time.sleep(0.1) 
             except grpc.RpcError as e:
                 logger.error(f"Error propagating to branch: {e.details()}")
 
