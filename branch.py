@@ -3,6 +3,7 @@ import example_pb2
 import example_pb2_grpc
 from concurrent import futures
 import logging
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -46,39 +47,34 @@ class Branch(example_pb2_grpc.RPCServicer):
         """Handles balance query requests."""
         return example_pb2.Response(interface="query", balance=self.balance)
 
-    def Deposit(self, request):
-        """Handles deposit requests and propagates the deposit to other branches."""
-        if request.money < 0:
-            logger.error("Deposit amount cannot be negative.")
-            return example_pb2.Response(interface="deposit", result="fail")
+    # Inside each balance-modifying method in branch.py
 
-        # Update balance
-        self.balance += request.money
-        self.Propagate_To_Branches("propagate_deposit", request.money)
-        return example_pb2.Response(interface="deposit", result="success")
 
-    def Withdraw(self, request):
-        """Handles withdrawal requests and propagates the withdrawal to other branches."""
-        if request.money < 0:
-            logger.error("Withdrawal amount cannot be negative.")
-            return example_pb2.Response(interface="withdraw", result="fail")
+def Deposit(self, request):
+    self.balance += request.money
+    self.Propagate_To_Branches("propagate_deposit", request.money)
+    logger.info(f"Branch {self.id} balance after deposit: {self.balance}")
+    return example_pb2.Response(interface="deposit", result="success")
 
-        if self.balance >= request.money:
-            self.balance -= request.money
-            self.Propagate_To_Branches("propagate_withdraw", request.money)
-            return example_pb2.Response(interface="withdraw", result="success")
-        else:
-            return example_pb2.Response(interface="withdraw", result="fail")
-
-    def Propagate_Deposit(self, request):
-        """Receives deposit propagation from other branches and updates balance."""
-        self.balance += request.money
-        return example_pb2.Response(interface="propagate_deposit", result="success")
-
-    def Propagate_Withdraw(self, request):
-        """Receives withdrawal propagation from other branches and updates balance."""
+def Withdraw(self, request):
+    if self.balance >= request.money:
         self.balance -= request.money
-        return example_pb2.Response(interface="propagate_withdraw", result="success")
+        self.Propagate_To_Branches("propagate_withdraw", request.money)
+        logger.info(f"Branch {self.id} balance after withdrawal: {self.balance}")
+        return example_pb2.Response(interface="withdraw", result="success")
+    else:
+        return example_pb2.Response(interface="withdraw", result="fail")
+
+def Propagate_Deposit(self, request):
+    self.balance += request.money
+    logger.info(f"Branch {self.id} balance after propagated deposit: {self.balance}")
+    return example_pb2.Response(interface="propagate_deposit", result="success")
+
+def Propagate_Withdraw(self, request):
+    self.balance -= request.money
+    logger.info(f"Branch {self.id} balance after propagated withdrawal: {self.balance}")
+    return example_pb2.Response(interface="propagate_withdraw", result="success")
+
 
     def Propagate_To_Branches(self, interface, money):
         """Propagates deposit or withdrawal actions to all other branches."""
