@@ -2,17 +2,22 @@ import grpc
 import example_pb2
 import example_pb2_grpc
 from concurrent import futures
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class Branch(example_pb2_grpc.RPCServicer):
-
+    
     def __init__(self, id, balance, branches):
         self.id = id
         self.balance = balance
         self.branches = branches
-        self.stubList = list()
-        self.recvMsg = list()
+        self.stubList = []
+        self.recvMsg = []
         
-        # 创建与其他分支通信的 stubs
+        # Create stubs for inter-branch communication
         for branch_id in self.branches:
             if branch_id != self.id:
                 channel = grpc.insecure_channel(f'localhost:{50000 + branch_id}')
@@ -20,6 +25,7 @@ class Branch(example_pb2_grpc.RPCServicer):
                 self.stubList.append(stub)
 
     def MsgDelivery(self, request, context):
+        """Handles incoming requests and directs them to the appropriate interface."""
         self.recvMsg.append(request)
         
         if request.interface == "query":
@@ -29,58 +35,64 @@ class Branch(example_pb2_grpc.RPCServicer):
         elif request.interface == "withdraw":
             return self.Withdraw(request)
         elif request.interface == "propagate_deposit":
-            return self.Propogate_Deposit(request)
+            return self.Propagate_Deposit(request)
         elif request.interface == "propagate_withdraw":
-            return self.Propogate_Withdraw(request)
+            return self.Propagate_Withdraw(request)
         else:
+            logger.error(f"Invalid interface requested: {request.interface}")
             return example_pb2.Response(interface="error", result="Invalid interface")
 
     def Query(self, request):
+        """Handles balance query requests."""
         return example_pb2.Response(interface="query", balance=self.balance)
 
     def Deposit(self, request):
-        # 更新当前分支的余额
+        """Handles deposit requests and propagates the deposit to other branches."""
+        if request.money < 0:
+            logger.error("Deposit amount cannot be negative.")
+            return example_pb2.Response(interface="deposit", result="fail")
+
+        # Update balance
         self.balance += request.money
-        
-        # 将存款操作传播到其他分支
         self.Propagate_To_Branches("propagate_deposit", request.money)
-        
         return example_pb2.Response(interface="deposit", result="success")
 
     def Withdraw(self, request):
+        """Handles withdrawal requests and propagates the withdrawal to other branches."""
+        if request.money < 0:
+            logger.error("Withdrawal amount cannot be negative.")
+            return example_pb2.Response(interface="withdraw", result="fail")
+
         if self.balance >= request.money:
-            # 更新当前分支的余额
             self.balance -= request.money
-            
-            # 将取款操作传播到其他分支
             self.Propagate_To_Branches("propagate_withdraw", request.money)
-            
             return example_pb2.Response(interface="withdraw", result="success")
         else:
             return example_pb2.Response(interface="withdraw", result="fail")
 
-    def Propogate_Deposit(self, request):
-        # 接收其他分支的存款传播请求并更新余额
+    def Propagate_Deposit(self, request):
+        """Receives deposit propagation from other branches and updates balance."""
         self.balance += request.money
         return example_pb2.Response(interface="propagate_deposit", result="success")
 
-    def Propogate_Withdraw(self, request):
-        # 接收其他分支的取款传播请求并更新余额
+    def Propagate_Withdraw(self, request):
+        """Receives withdrawal propagation from other branches and updates balance."""
         self.balance -= request.money
         return example_pb2.Response(interface="propagate_withdraw", result="success")
 
     def Propagate_To_Branches(self, interface, money):
-        # 将存款或取款操作传播到所有其他分支
+        """Propagates deposit or withdrawal actions to all other branches."""
         for stub in self.stubList:
             try:
                 request = example_pb2.Request(interface=interface, money=money)
                 stub.MsgDelivery(request)
-            except Exception as e:
-                print(f"Error propagating to branch: {e}")
+            except grpc.RpcError as e:
+                logger.error(f"Error propagating to branch: {e.details()}")
 
 def serve(branch):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     example_pb2_grpc.add_BankServiceServicer_to_server(branch, server)
     server.add_insecure_port(f'[::]:{50000 + branch.id}')
     server.start()
+    logger.info(f"Branch server started at port {50000 + branch.id}")
     server.wait_for_termination()
