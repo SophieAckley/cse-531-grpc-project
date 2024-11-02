@@ -53,7 +53,7 @@ class Branch(example_pb2_grpc.RPCServicer):
             logger.error("Deposit amount cannot be negative.")
             return example_pb2.Response(interface="deposit", result="fail")
 
-        # Update balance
+        # Update balance and propagate to other branches
         self.balance += request.money
         self.Propagate_To_Branches("propagate_deposit", request.money)
         logger.info(f"Branch {self.id} balance after deposit: {self.balance}")
