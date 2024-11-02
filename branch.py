@@ -16,7 +16,6 @@ class Branch(example_pb2_grpc.RPCServicer):
         self.balance = balance
         self.branches = branches
         self.stubList = []
-        self.recvMsg = []
         
         # Create stubs for inter-branch communication
         for branch_id in self.branches:
@@ -27,7 +26,6 @@ class Branch(example_pb2_grpc.RPCServicer):
 
     def MsgDelivery(self, request, context):
         """Handles incoming requests and directs them to the appropriate interface."""
-        self.recvMsg.append(request)
         
         if request.interface == "query":
             return self.Query(request)
@@ -55,7 +53,7 @@ class Branch(example_pb2_grpc.RPCServicer):
 
         # Update balance and propagate to other branches
         self.balance += request.money
-        self.Propagate_To_Branches("propagate_deposit", request.money)
+        self.Confirm_Propagation("propagate_deposit", request.money)
         logger.info(f"Branch {self.id} balance after deposit: {self.balance}")
         return example_pb2.Response(interface="deposit", result="success")
 
@@ -67,7 +65,7 @@ class Branch(example_pb2_grpc.RPCServicer):
 
         if self.balance >= request.money:
             self.balance -= request.money
-            self.Propagate_To_Branches("propagate_withdraw", request.money)
+            self.Confirm_Propagation("propagate_withdraw", request.money)
             logger.info(f"Branch {self.id} balance after withdrawal: {self.balance}")
             return example_pb2.Response(interface="withdraw", result="success")
         else:
@@ -85,8 +83,8 @@ class Branch(example_pb2_grpc.RPCServicer):
         logger.info(f"Branch {self.id} balance after propagated withdrawal: {self.balance}")
         return example_pb2.Response(interface="propagate_withdraw", result="success")
 
-    def Propagate_To_Branches(self, interface, money):
-        """Propagates deposit or withdrawal actions to all other branches with acknowledgment."""
+    def Confirm_Propagation(self, interface, money):
+        """Propagates deposit or withdrawal actions to all other branches and waits for confirmation."""
         for stub in self.stubList:
             try:
                 request = example_pb2.Request(interface=interface, money=money)
